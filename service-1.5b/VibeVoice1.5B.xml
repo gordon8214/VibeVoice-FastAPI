@@ -1,0 +1,26 @@
+<service>
+  <id>VibeVoice1.5B</id>
+  <name>VibeVoice 1.5B FastAPI TTS</name>
+  <description>VibeVoice 1.5B TTS Engine - FastAPI server providing text-to-speech on port 8002</description>
+
+  <executable>powershell.exe</executable>
+  <arguments>-ExecutionPolicy Bypass -NoProfile -File "%BASE%\start-service.ps1"</arguments>
+  <workingdirectory>%BASE%\..</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <stoptimeout>30sec</stoptimeout>
+
+  <!-- Network dependencies - ensures network is available before starting -->
+  <depend>Tcpip</depend>
+  <depend>Dnscache</depend>
+
+  <!-- Capture stdout/stderr to log files -->
+  <log mode="roll-by-size">
+    <logpath>%BASE%\..\logs</logpath>
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+
+</service>
