@@ -59,10 +59,11 @@ class TTSService:
     
     def _load_quantized_model(self):
         """Load model using AutoModelForCausalLM for quantized models."""
-        from transformers import AutoModelForCausalLM, AutoProcessor
+        from transformers import AutoModelForCausalLM
         
-        # Load processor
-        self.processor = AutoProcessor.from_pretrained(
+        # Load processor - use VibeVoiceProcessor since it's the same regardless of quantization
+        # The processor handles text/audio processing, not model weights
+        self.processor = VibeVoiceProcessor.from_pretrained(
             self.settings.vibevoice_model_path,
             trust_remote_code=True
         )
