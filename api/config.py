@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         default=None,
         description="Attention implementation: flash_attention_2, sdpa, or eager (auto-detected if None)"
     )
+    vibevoice_use_quantized: bool = Field(
+        default=False,
+        description="Use quantized model loading (AutoModelForCausalLM) instead of full precision (VibeVoiceForConditionalGenerationInference)"
+    )
     
     # Voice Configuration
     voices_dir: str = Field(

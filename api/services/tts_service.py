@@ -43,8 +43,63 @@ class TTSService:
         self.dtype = self.settings.get_dtype()
         attn_implementation = self.settings.get_attn_implementation()
         
-        print(f"Using device: {self.device}, dtype: {self.dtype}, attention: {attn_implementation}")
+        # Check if using quantized model loading
+        use_quantized = self.settings.vibevoice_use_quantized
         
+        if use_quantized:
+            print("Using quantized model loading (AutoModelForCausalLM)")
+            self._load_quantized_model()
+        else:
+            print("Using full precision model loading (VibeVoiceForConditionalGenerationInference)")
+            print(f"Using device: {self.device}, dtype: {self.dtype}, attention: {attn_implementation}")
+            self._load_full_precision_model(attn_implementation)
+        
+        self._model_loaded = True
+        print("Model loaded successfully")
+    
+    def _load_quantized_model(self):
+        """Load model using AutoModelForCausalLM for quantized models."""
+        from transformers import AutoModelForCausalLM, AutoProcessor
+        
+        # Load processor
+        self.processor = AutoProcessor.from_pretrained(
+            self.settings.vibevoice_model_path,
+            trust_remote_code=True
+        )
+        
+        # Load model with quantized settings
+        if self.device == "mps":
+            # MPS doesn't support device_map="auto"
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.settings.vibevoice_model_path,
+                torch_dtype=torch.bfloat16,
+                trust_remote_code=True,
+                device_map=None,
+            )
+            self.model.to("mps")
+        else:
+            # Use device_map="auto" for CUDA/CPU
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.settings.vibevoice_model_path,
+                device_map="auto",
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+            )
+        
+        self.model.eval()
+        
+        # Configure noise scheduler
+        self.model.model.noise_scheduler = self.model.model.noise_scheduler.from_config(
+            self.model.model.noise_scheduler.config,
+            algorithm_type='sde-dpmsolver++',
+            beta_schedule='squaredcos_cap_v2'
+        )
+        
+        # Set inference steps
+        self.model.set_ddpm_inference_steps(num_steps=self.settings.vibevoice_inference_steps)
+    
+    def _load_full_precision_model(self, attn_implementation: str):
+        """Load model using full precision VibeVoiceForConditionalGenerationInference."""
         # Load processor
         self.processor = VibeVoiceProcessor.from_pretrained(self.settings.vibevoice_model_path)
         
@@ -115,9 +170,6 @@ class TTSService:
         
         # Set inference steps
         self.model.set_ddpm_inference_steps(num_steps=self.settings.vibevoice_inference_steps)
-        
-        self._model_loaded = True
-        print("Model loaded successfully")
     
     @property
     def is_loaded(self) -> bool:
