@@ -45,7 +45,9 @@ COPY requirements-api.txt ./
 # Note: --only-binary removed for PyTorch to work in CI (CPU-only build environment)
 # PyTorch wheels are pre-built, so no compilation occurs
 # Increased timeout and retries for network stability
-RUN pip install --default-timeout=300 --retries 5 torch==2.8.* torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Fallback to PyPI if PyTorch CDN is unavailable
+RUN pip install --default-timeout=300 --retries 5 torch==2.8.* torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 || \
+    pip install --default-timeout=300 --retries 5 torch==2.8.* torchvision torchaudio
 
 # Install flash-attn from pre-built wheel directly from GitHub releases
 # Python 3.12 (cp312), CUDA 12.x (cu12 wheel works with 12.1-12.8), PyTorch 2.8
