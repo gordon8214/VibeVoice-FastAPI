@@ -44,12 +44,13 @@ COPY requirements-api.txt ./
 # Use PyTorch 2.8 to match flash-attention wheel
 # Note: --only-binary removed for PyTorch to work in CI (CPU-only build environment)
 # PyTorch wheels are pre-built, so no compilation occurs
-RUN pip install torch==2.8.* torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Increased timeout and retries for network stability
+RUN pip install --default-timeout=300 --retries 5 torch==2.8.* torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 # Install flash-attn from pre-built wheel directly from GitHub releases
 # Python 3.12 (cp312), CUDA 12.x (cu12 wheel works with 12.1-12.8), PyTorch 2.8
 # Downloading directly ensures NO compilation ever happens
-RUN pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp312-cp312-linux_x86_64.whl || \
+# RUN pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp312-cp312-linux_x86_64.whl || \
     echo "WARNING: flash-attn wheel install failed, continuing without it"
 
 # Install VibeVoice package (with --only-binary to prevent any compilation)
