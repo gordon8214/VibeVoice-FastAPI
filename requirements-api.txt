@@ -14,6 +14,9 @@ pydantic-settings>=2.0.0
 pydub>=0.25.1
 soundfile>=0.12.1
 
+# Quantized model support
+bitsandbytes>=0.43.0
+
 # Async and streaming
 aiofiles>=23.2.1
 sse-starlette>=1.8.0
