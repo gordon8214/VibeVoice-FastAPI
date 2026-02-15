@@ -295,12 +295,42 @@ def run_baremetal_setup(detected_os):
     else:
         # Windows: run equivalent Python steps
         print("Running Windows setup steps...\n")
-        python = sys.executable
+
+        # Find Python 3.10-3.12 (prefer 3.12 to match Docker)
+        python = None
+        for cmd in ["py -3.12", "py -3.11", "py -3.10",
+                     "python3.12", "python3.11", "python3.10",
+                     "python3", "python"]:
+            try:
+                parts = cmd.split()
+                r = subprocess.run(
+                    parts + ["-c", "import sys; print(sys.version_info.minor)"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if r.returncode == 0:
+                    minor = int(r.stdout.strip())
+                    if 10 <= minor <= 12:
+                        python = parts
+                        ver = subprocess.run(
+                            parts + ["--version"],
+                            capture_output=True, text=True,
+                        ).stdout.strip()
+                        print(f"  Found compatible Python: {ver}")
+                        break
+            except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+                continue
+
+        if python is None:
+            print("  ERROR: Python 3.10, 3.11, or 3.12 is required.")
+            print("  Download Python 3.12 from: https://www.python.org/downloads/")
+            print("  Make sure to check 'Add Python to PATH' during installation.")
+            return False
+
         venv_dir = SCRIPT_DIR / "venv"
 
         if not venv_dir.exists():
             print("  Creating virtual environment...")
-            subprocess.run([python, "-m", "venv", str(venv_dir)], check=True)
+            subprocess.run(python + ["-m", "venv", str(venv_dir)], check=True)
 
         # Determine pip/python inside venv
         if detected_os == "windows":
