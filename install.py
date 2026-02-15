@@ -315,11 +315,15 @@ def run_baremetal_setup(detected_os):
             subprocess.run([venv_pip, "install", "--upgrade", "pip", "wheel",
                             "setuptools"], check=True)
 
-            print("  Installing PyTorch with CUDA...")
-            subprocess.run([venv_pip, "install", "torch", "torchaudio",
+            print("  Installing PyTorch 2.8.x with CUDA...")
+            subprocess.run([venv_pip, "install", "torch==2.8.*", "torchaudio",
                             "--index-url",
                             "https://download.pytorch.org/whl/cu128"],
                            check=True)
+
+            print("  Installing torchao for quantization support...")
+            subprocess.run([venv_pip, "install", "torchao==0.13.0"],
+                           check=False)
 
             print("  Installing VibeVoice package...")
             subprocess.run([venv_pip, "install", "-e", str(SCRIPT_DIR)],
