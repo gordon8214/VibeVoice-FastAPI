@@ -1,23 +1,57 @@
-# Docker-specific environment configuration
-# Copy this to .env for docker-compose
+# VibeVoice API Configuration (Docker)
+# Copy this file to .env for docker-compose
 
 # ============================================================
 # Model Configuration
 # ============================================================
 
-# Path to VibeVoice model (inside container or HuggingFace ID)
+# Path to VibeVoice model (HuggingFace model ID or local path)
+# Use HuggingFace model ID (downloads automatically) or local path to model directory
 VIBEVOICE_MODEL_PATH=microsoft/VibeVoice-1.5B
 #VIBEVOICE_MODEL_PATH=rsxdalv/VibeVoice-Large
+#VIBEVOICE_MODEL_PATH=FabioSarracino/VibeVoice-Large-Q8
+# Local path example:
+# VIBEVOICE_MODEL_PATH=/path/to/your/model
 
-# Device for inference
+# Device for inference: cuda, cpu, or mps
 VIBEVOICE_DEVICE=cuda
 
-# Number of diffusion inference steps
+# Optional: Specify which GPU to use
+# CUDA_VISIBLE_DEVICES=0
+
+# Number of diffusion inference steps (5-50, higher = better quality but slower)
 VIBEVOICE_INFERENCE_STEPS=10
 
-# Quantization method to reduce VRAM usage (~40% reduction with int8_torchao)
-# Options: int8_torchao (requires torchao), or leave empty for full precision
+# Model dtype: bfloat16, float16, or float32 (auto-detected if not set)
+# VIBEVOICE_DTYPE=bfloat16
+
+# Attention implementation: flash_attention_2, sdpa, or eager (auto-detected if not set)
+# VIBEVOICE_ATTN_IMPLEMENTATION=flash_attention_2
+
+# Enable torch.compile for optimized inference (20-50% speedup)
+# Note: First request will be slower due to compilation, subsequent requests are faster
+# TORCH_COMPILE=true
+
+# torch.compile mode: default, reduce-overhead, or max-autotune (slower compile, faster inference)
+# TORCH_COMPILE_MODE=max-autotune
+
+# Quantization method to reduce VRAM usage
+# Options: int8_torchao, int4_torchao, or leave empty for full precision
 # VIBEVOICE_QUANTIZATION=int8_torchao
+
+# ============================================================
+# Voice Configuration
+# ============================================================
+
+# Directory containing voice preset audio files
+# For Docker: this is the HOST path that gets mounted to /app/voices in the container
+# Supported formats: .wav, .mp3, .flac, .ogg, .m4a, .aac
+VOICES_DIR=./demo/voices
+
+# OpenAI voice name to VibeVoice preset mapping (JSON format)
+# Maps OpenAI-compatible voice names (alloy, echo, fable, onyx, nova, shimmer) to your voice preset files
+# Format: {"openai_voice_name": "vibevoice_preset_name", ...}
+OPENAI_VOICE_MAPPING={"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable": "en-Maya_woman", "onyx": "en-Frank_man", "nova": "en-Mary_woman_bgm", "shimmer": "en-Alice_woman"}
 
 # ============================================================
 # API Server Configuration
@@ -32,10 +66,19 @@ API_CORS_ORIGINS=*
 # Generation Defaults
 # ============================================================
 
+# Default CFG scale (1.0-3.0, higher = more faithful to prompt)
 DEFAULT_CFG_SCALE=1.8
+
+# Default audio response format
 DEFAULT_RESPONSE_FORMAT=mp3
+
+# Maximum generation length in seconds
 MAX_GENERATION_LENGTH=5400
+
+# Text generation sampling (False = greedy decoding, True = sampling)
 DEFAULT_DO_SAMPLE=False
+
+# Sampling parameters (only used if DO_SAMPLE=True)
 DEFAULT_TEMPERATURE=1.0
 DEFAULT_TOP_P=1.0
 DEFAULT_TOP_K=50
@@ -50,17 +93,9 @@ LOG_LEVEL=INFO
 # ============================================================
 # Docker Volume Mounts (Host Paths)
 # ============================================================
-# All paths below are HOST paths that will be mounted into the container
-# Set these to absolute paths on your host system
-
-# Path to voices directory on host (mounted to /app/voices in container)
-VOICES_DIR=demo/voices
-
-# OpenAI voice name to VibeVoice preset mapping (JSON format)
-# Maps OpenAI-compatible voice names (alloy, echo, fable, onyx, nova, shimmer) to your voice preset files
-# Format: {"openai_voice_name": "vibevoice_preset_name", ...}
-# Default mapping uses voices from demo/voices folder
-OPENAI_VOICE_MAPPING={"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable": "en-Maya_woman", "onyx": "en-Frank_man", "nova": "en-Mary_woman_bgm", "shimmer": "en-Alice_woman"}
+# These are HOST paths used by docker-compose for volume mounting.
+# They are NOT used by the Python app itself.
+# Set these to absolute paths on your host system.
 
 # Path to HuggingFace cache on host (optional, for faster model loading)
 # Mounted to /root/.cache/huggingface in container
@@ -69,4 +104,3 @@ OPENAI_VOICE_MAPPING={"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable
 # Path to models directory on host (optional)
 # Mounted to /app/models in container
 # MODELS_DIR=/home/user/vibevoice-models
-
