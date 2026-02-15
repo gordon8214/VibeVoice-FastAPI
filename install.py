@@ -340,57 +340,68 @@ def run_baremetal_setup(detected_os):
             venv_python = str(venv_dir / "bin" / "python")
             venv_pip = str(venv_dir / "bin" / "pip")
 
-        try:
-            print("  Upgrading pip...")
-            subprocess.run([venv_pip, "install", "--upgrade", "pip", "wheel",
-                            "setuptools"], check=True)
+        errors = []
 
-            # Detect CUDA version for correct PyTorch index
-            torch_index = "https://download.pytorch.org/whl/cu128"
-            try:
-                result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=driver_version",
-                     "--format=csv,noheader"],
-                    capture_output=True, text=True, timeout=10,
-                )
-                if result.returncode == 0:
-                    print("  NVIDIA GPU detected")
-                else:
-                    torch_index = "https://download.pytorch.org/whl/cpu"
-                    print("  No NVIDIA GPU detected, using CPU PyTorch")
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                torch_index = "https://download.pytorch.org/whl/cpu"
-                print("  nvidia-smi not found, using CPU PyTorch")
-
-            print(f"  Installing PyTorch with CUDA...")
-            # Try versioned install first, fall back to latest
-            r = subprocess.run(
-                [venv_pip, "install", "torch==2.8.*", "torchaudio",
-                 "--index-url", torch_index])
+        def run_step(description, cmd, required=True):
+            """Run a setup step, log failures, continue if not required."""
+            print(f"  {description}...")
+            r = subprocess.run(cmd)
             if r.returncode != 0:
-                print("  PyTorch 2.8.x not available, installing latest...")
-                subprocess.run(
-                    [venv_pip, "install", "torch", "torchaudio",
-                     "--index-url", torch_index],
-                    check=True)
-
-            print("  Installing torchao for quantization support...")
-            subprocess.run([venv_pip, "install", "torchao"],
-                           check=False)
-
-            print("  Installing VibeVoice package...")
-            subprocess.run([venv_pip, "install", "-e", str(SCRIPT_DIR)],
-                           check=True)
-
-            print("  Installing API dependencies...")
-            subprocess.run([venv_pip, "install", "-r",
-                            str(SCRIPT_DIR / "requirements-api.txt")],
-                           check=True)
-
+                msg = f"{description} failed (exit code {r.returncode})"
+                print(f"  WARNING: {msg}")
+                if required:
+                    errors.append(msg)
+                return False
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"\n  Setup step failed with exit code {e.returncode}")
+
+        run_step("Upgrading pip",
+                 [venv_pip, "install", "--upgrade", "pip", "wheel",
+                  "setuptools"])
+
+        # Detect CUDA version for correct PyTorch index
+        torch_index = "https://download.pytorch.org/whl/cu128"
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=driver_version",
+                 "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                print("  NVIDIA GPU detected")
+            else:
+                torch_index = "https://download.pytorch.org/whl/cpu"
+                print("  No NVIDIA GPU detected, using CPU PyTorch")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            torch_index = "https://download.pytorch.org/whl/cpu"
+            print("  nvidia-smi not found, using CPU PyTorch")
+
+        # Try versioned install first, fall back to latest
+        if not run_step("Installing PyTorch 2.8.x",
+                        [venv_pip, "install", "torch==2.8.*", "torchaudio",
+                         "--index-url", torch_index],
+                        required=False):
+            errors.pop() if errors and "PyTorch" in errors[-1] else None
+            run_step("Installing PyTorch (latest)",
+                     [venv_pip, "install", "torch", "torchaudio",
+                      "--index-url", torch_index])
+
+        run_step("Installing torchao for quantization",
+                 [venv_pip, "install", "torchao"],
+                 required=False)
+
+        run_step("Installing VibeVoice package",
+                 [venv_pip, "install", "-e", str(SCRIPT_DIR)])
+
+        run_step("Installing API dependencies",
+                 [venv_pip, "install", "-r",
+                  str(SCRIPT_DIR / "requirements-api.txt")])
+
+        if errors:
+            print("\n  The following steps failed:")
+            for err in errors:
+                print(f"    - {err}")
             return False
+        return True
 
 
 # ============================================================
