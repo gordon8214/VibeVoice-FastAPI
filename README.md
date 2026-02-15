@@ -30,7 +30,7 @@ The easiest way to get started — works on Linux, macOS, and Windows:
 ```bash
 git clone https://github.com/ncoder-ai/VibeVoice-FastAPI.git
 cd VibeVoice-FastAPI
-python install.py
+python install.py (or python3 install.py)
 ```
 
 The installer will detect your GPU, ask a few questions, generate your config, and start the server automatically.
