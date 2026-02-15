@@ -15,11 +15,21 @@ Complete documentation for the VibeVoice FastAPI server with OpenAI-compatible e
 
 ### Installation
 
+The easiest way to get started is the interactive installer:
+
+```bash
+python install.py
+```
+
+This detects your GPU, generates `.env`, and sets up everything automatically.
+
+Alternatively, set up manually:
+
 ```bash
 # Run setup script
 ./setup.sh
 
-# Configure (optional)
+# Configure
 cp env.example .env
 # Edit .env as needed
 

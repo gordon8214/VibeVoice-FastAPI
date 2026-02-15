@@ -23,9 +23,21 @@ A production-ready FastAPI server that exposes the VibeVoice TTS model as an Ope
 
 ## 📋 Quick Start
 
-**Docker is the recommended deployment method** - it handles all dependencies, ensures consistent environments, and is production-ready.
+### Interactive Installer (Recommended)
 
-### Docker Deployment (Recommended)
+The easiest way to get started — works on Linux, macOS, and Windows:
+
+```bash
+git clone https://github.com/ncoder-ai/VibeVoice-FastAPI.git
+cd VibeVoice-FastAPI
+python install.py
+```
+
+The installer will detect your GPU, ask a few questions, generate your config, and start the server automatically.
+
+### Docker Deployment (Manual)
+
+If you prefer to set things up manually with Docker:
 
 ```bash
 # Clone the repository

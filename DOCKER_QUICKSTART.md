@@ -10,7 +10,17 @@
 
 ## Quick Start
 
-### 1. Setup Environment
+### Option A: Interactive Installer (Easiest)
+
+```bash
+python install.py
+```
+
+The installer will auto-detect your GPU, walk you through configuration, generate `.env`, update `docker-compose.yml`, and start the container for you.
+
+### Option B: Manual Setup
+
+#### 1. Setup Environment
 
 ```bash
 # Copy environment file
@@ -22,7 +32,7 @@ nano .env
 
 **Required:** Set `VOICES_DIR` to the absolute path where your voice files are stored on the host.
 
-### 2. Build and Run
+#### 2. Build and Run
 
 ```bash
 # Build and start
