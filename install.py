@@ -332,13 +332,13 @@ def run_baremetal_setup(detected_os):
             print("  Creating virtual environment...")
             subprocess.run(python + ["-m", "venv", str(venv_dir)], check=True)
 
-        # Determine pip/python inside venv
+        # Use "python -m pip" instead of "pip" directly to avoid
+        # Windows file locking issues when pip tries to upgrade itself
         if detected_os == "windows":
             venv_python = str(venv_dir / "Scripts" / "python.exe")
-            venv_pip = str(venv_dir / "Scripts" / "pip.exe")
         else:
             venv_python = str(venv_dir / "bin" / "python")
-            venv_pip = str(venv_dir / "bin" / "pip")
+        venv_pip = [venv_python, "-m", "pip"]
 
         errors = []
 
@@ -355,8 +355,8 @@ def run_baremetal_setup(detected_os):
             return True
 
         run_step("Upgrading pip",
-                 [venv_pip, "install", "--upgrade", "pip", "wheel",
-                  "setuptools"])
+                 venv_pip + ["install", "--upgrade", "pip", "wheel",
+                             "setuptools"])
 
         # Detect CUDA version for correct PyTorch index
         torch_index = "https://download.pytorch.org/whl/cu128"
@@ -377,24 +377,24 @@ def run_baremetal_setup(detected_os):
 
         # Try versioned install first, fall back to latest
         if not run_step("Installing PyTorch 2.8.x",
-                        [venv_pip, "install", "torch==2.8.*", "torchaudio",
-                         "--index-url", torch_index],
+                        venv_pip + ["install", "torch==2.8.*", "torchaudio",
+                                    "--index-url", torch_index],
                         required=False):
             errors.pop() if errors and "PyTorch" in errors[-1] else None
             run_step("Installing PyTorch (latest)",
-                     [venv_pip, "install", "torch", "torchaudio",
-                      "--index-url", torch_index])
+                     venv_pip + ["install", "torch", "torchaudio",
+                                 "--index-url", torch_index])
 
         run_step("Installing torchao for quantization",
-                 [venv_pip, "install", "torchao"],
+                 venv_pip + ["install", "torchao"],
                  required=False)
 
         run_step("Installing VibeVoice package",
-                 [venv_pip, "install", "-e", str(SCRIPT_DIR)])
+                 venv_pip + ["install", "-e", str(SCRIPT_DIR)])
 
         run_step("Installing API dependencies",
-                 [venv_pip, "install", "-r",
-                  str(SCRIPT_DIR / "requirements-api.txt")])
+                 venv_pip + ["install", "-r",
+                             str(SCRIPT_DIR / "requirements-api.txt")])
 
         if errors:
             print("\n  The following steps failed:")
