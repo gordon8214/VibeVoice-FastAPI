@@ -82,6 +82,10 @@ The following host paths are mounted into the container:
 
 ## Troubleshooting
 
+### "Extra inputs are not permitted" error
+
+If you see an error like `Extra inputs are not permitted [type=extra_forbidden, input_value='./models', input_type=str]`, you have env vars in your `.env` that the app doesn't recognize. This was fixed - pull the latest code. Any unknown env vars (like `MODELS_DIR`, `HF_CACHE_DIR`) are now safely ignored by the app.
+
 ### No voices available
 
 Check that `VOICES_DIR` in `.env` points to the correct host path with voice files.
@@ -90,7 +94,7 @@ Check that `VOICES_DIR` in `.env` points to the correct host path with voice fil
 
 ```bash
 # Test GPU access
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi
 
 # Check container GPU access
 docker exec vibevoice-api nvidia-smi
@@ -114,7 +118,7 @@ HF_CACHE_DIR=~/.cache/huggingface
 
 - ✅ **No compilation** - All packages installed from pre-built wheels
 - ✅ **Fast builds** - Builds complete in minutes, not hours
-- ✅ **Python 3.10 + CUDA 12.1** - Optimized for wheel availability
+- ✅ **Python 3.12 + CUDA 12.8** - Optimized for wheel availability
 - ✅ **Flash-attention** - Pre-built wheel support (optional)
 
 ## Resource Requirements

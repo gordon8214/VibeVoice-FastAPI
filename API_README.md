@@ -27,12 +27,12 @@ cp env.example .env
 ./start.sh
 ```
 
-The API will be available at `http://localhost:8000`
+The API will be available at `http://localhost:8001`
 
 ### First API Call
 
 ```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
     "model": "tts-1",
@@ -66,7 +66,7 @@ Generate speech from text (OpenAI-compatible).
 
 **Example:**
 ```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"model":"tts-1","input":"Hello!","voice":"alloy","response_format":"mp3"}' \
   --output speech.mp3
@@ -82,10 +82,10 @@ List available voices.
 **Example:**
 ```bash
 # OpenAI voices only (6 voices)
-curl http://localhost:8000/v1/audio/voices
+curl http://localhost:8001/v1/audio/voices
 
 # All voices including custom
-curl 'http://localhost:8000/v1/audio/voices?show_all=true'
+curl 'http://localhost:8001/v1/audio/voices?show_all=true'
 ```
 
 ### VibeVoice Extended Endpoints
@@ -127,7 +127,7 @@ Check service health and model status.
 - `fable` → en-Maya_woman (English, Female)
 - `onyx` → en-Frank_man (English, Male)
 - `nova` → en-Mary_woman_bgm (English, Female with BGM)
-- `shimmer` → zh-Xinran_woman (Chinese, Female)
+- `shimmer` → en-Alice_woman (English, Female)
 
 **Additional Presets (3):**
 - `in-Samuel_man` (Indian English, Male)
@@ -153,7 +153,7 @@ cp my-voice.wav demo/voices/custom-voice.wav
 ./start.sh
 
 # Use it
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
     "model": "tts-1",
@@ -174,21 +174,21 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 **Method 1: OpenAI Voice Names**
 ```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"model":"tts-1","input":"Hello","voice":"alloy","response_format":"mp3"}'
 ```
 
 **Method 2: Direct Preset Names**
 ```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"model":"tts-1","input":"Hello","voice":"in-Samuel_man","response_format":"mp3"}'
 ```
 
 **Method 3: Custom Voice Names**
 ```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
+curl -X POST http://localhost:8001/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"model":"tts-1","input":"Hello","voice":"my-custom-voice","response_format":"mp3"}'
 ```
@@ -235,11 +235,16 @@ VOICES_DIR=demo/voices  # Directory with voice files
 
 # API Server
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=8001
 API_CORS_ORIGINS=*
 
+# Performance Optimization
+TORCH_COMPILE=true                               # 20-50% speedup (slower first request)
+TORCH_COMPILE_MODE=max-autotune                  # default, reduce-overhead, or max-autotune
+# VIBEVOICE_QUANTIZATION=int8_torchao            # Reduce VRAM ~40%
+
 # Generation Defaults
-DEFAULT_CFG_SCALE=1.3  # 1.0-3.0
+DEFAULT_CFG_SCALE=1.8  # 1.0-3.0
 DEFAULT_RESPONSE_FORMAT=mp3
 DEFAULT_DO_SAMPLE=False
 DEFAULT_TEMPERATURE=1.0
@@ -267,7 +272,7 @@ Supported output formats:
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:8000/v1",
+    base_url="http://localhost:8001/v1",
     api_key="not-needed"  # Not required for local server
 )
 
@@ -287,7 +292,7 @@ response.stream_to_file("speech.mp3")
 import requests
 
 response = requests.post(
-    "http://localhost:8000/v1/audio/speech",
+    "http://localhost:8001/v1/audio/speech",
     json={
         "model": "tts-1",
         "input": "Hello from VibeVoice!",
@@ -306,7 +311,7 @@ with open("speech.mp3", "wb") as f:
 
 1. List all voices to see what's available:
    ```bash
-   curl 'http://localhost:8000/v1/audio/voices?show_all=true'
+   curl 'http://localhost:8001/v1/audio/voices?show_all=true'
    ```
 
 2. Check voices directory:
@@ -395,8 +400,8 @@ brew install ffmpeg
 
 ## Interactive Documentation
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:8001/docs
+- **ReDoc**: http://localhost:8001/redoc
 
 ## Support
 

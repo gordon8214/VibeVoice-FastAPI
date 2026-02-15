@@ -161,8 +161,13 @@ VOICES_DIR=demo/voices                           # Directory with voice files
 API_PORT=8001
 API_CORS_ORIGINS=*
 
+# Performance Optimization
+TORCH_COMPILE=true                               # 20-50% speedup (slower first request)
+TORCH_COMPILE_MODE=max-autotune                  # default, reduce-overhead, or max-autotune
+# VIBEVOICE_QUANTIZATION=int8_torchao            # Reduce VRAM ~40%
+
 # Generation Defaults
-DEFAULT_CFG_SCALE=1.3                            # 1.0-3.0
+DEFAULT_CFG_SCALE=1.8                            # 1.0-3.0
 DEFAULT_RESPONSE_FORMAT=mp3
 ```
 
