@@ -104,8 +104,7 @@ copy env.example .env
 # Edit .env with your settings (use notepad, vscode, etc.)
 
 # Start server
-set CUDA_VISIBLE_DEVICES=0
-uvicorn api.main:app --host 0.0.0.0 --port 8001
+start.bat
 ```
 
 > **Note:** Flash-attention does not have pre-built Windows wheels. The API will automatically fall back to SDPA attention, which works well. Also ensure [ffmpeg](https://ffmpeg.org/download.html) is installed and on your PATH for audio format conversion.

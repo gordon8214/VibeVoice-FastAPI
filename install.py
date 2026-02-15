@@ -563,8 +563,7 @@ def main():
             print()
             print("To start the server:")
             if detected_os_name == "windows":
-                print("  venv\\Scripts\\activate")
-                print(f"  uvicorn api.main:app --host 0.0.0.0 --port {config['port']}")
+                print("  start.bat")
             else:
                 print("  ./start.sh")
         else:
