@@ -84,9 +84,9 @@ if command -v nvidia-smi &> /dev/null; then
     echo "✓ Detected CUDA $CUDA_VERSION"
 
     # Select appropriate PyTorch CUDA index
-    if [ "$CUDA_MAJOR" -ge "12" ] && [ "$CUDA_MINOR" -ge "8" ]; then
+    if [ "$CUDA_MAJOR" -gt "12" ] || { [ "$CUDA_MAJOR" -eq "12" ] && [ "$CUDA_MINOR" -ge "8" ]; }; then
         TORCH_INDEX="cu128"
-    elif [ "$CUDA_MAJOR" -ge "12" ]; then
+    elif [ "$CUDA_MAJOR" -eq "12" ]; then
         TORCH_INDEX="cu124"
     elif [ "$CUDA_MAJOR" -ge "11" ]; then
         TORCH_INDEX="cu118"
