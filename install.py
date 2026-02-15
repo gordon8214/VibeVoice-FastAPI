@@ -315,14 +315,37 @@ def run_baremetal_setup(detected_os):
             subprocess.run([venv_pip, "install", "--upgrade", "pip", "wheel",
                             "setuptools"], check=True)
 
-            print("  Installing PyTorch 2.8.x with CUDA...")
-            subprocess.run([venv_pip, "install", "torch==2.8.*", "torchaudio",
-                            "--index-url",
-                            "https://download.pytorch.org/whl/cu128"],
-                           check=True)
+            # Detect CUDA version for correct PyTorch index
+            torch_index = "https://download.pytorch.org/whl/cu128"
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=driver_version",
+                     "--format=csv,noheader"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode == 0:
+                    print("  NVIDIA GPU detected")
+                else:
+                    torch_index = "https://download.pytorch.org/whl/cpu"
+                    print("  No NVIDIA GPU detected, using CPU PyTorch")
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                torch_index = "https://download.pytorch.org/whl/cpu"
+                print("  nvidia-smi not found, using CPU PyTorch")
+
+            print(f"  Installing PyTorch with CUDA...")
+            # Try versioned install first, fall back to latest
+            r = subprocess.run(
+                [venv_pip, "install", "torch==2.8.*", "torchaudio",
+                 "--index-url", torch_index])
+            if r.returncode != 0:
+                print("  PyTorch 2.8.x not available, installing latest...")
+                subprocess.run(
+                    [venv_pip, "install", "torch", "torchaudio",
+                     "--index-url", torch_index],
+                    check=True)
 
             print("  Installing torchao for quantization support...")
-            subprocess.run([venv_pip, "install", "torchao==0.13.0"],
+            subprocess.run([venv_pip, "install", "torchao"],
                            check=False)
 
             print("  Installing VibeVoice package...")
