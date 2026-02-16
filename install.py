@@ -645,6 +645,14 @@ def main():
 
 
 if __name__ == "__main__":
+    # When piped via "curl ... | bash", stdin is the pipe, not the terminal.
+    # Reopen stdin from /dev/tty (Unix) so input() prompts work.
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin = open("/dev/tty", "r")
+        except OSError:
+            pass  # Windows or no tty available — stdin stays as-is
+
     try:
         main()
     except KeyboardInterrupt:
