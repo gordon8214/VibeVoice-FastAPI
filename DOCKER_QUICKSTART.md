@@ -10,11 +10,19 @@
 
 ## Quick Start
 
-### Option A: Interactive Installer (Easiest)
+### Option A: One-Click Install (Easiest)
 
+**Linux / macOS:**
 ```bash
-python install.py
+curl -fsSL https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.sh | bash
 ```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.bat" -OutFile "install.bat"; .\install.bat
+```
+
+Or if you already have the repo cloned: `python3 install.py`
 
 The installer will auto-detect your GPU, walk you through configuration, generate `.env`, update `docker-compose.yml`, and start the container for you.
 

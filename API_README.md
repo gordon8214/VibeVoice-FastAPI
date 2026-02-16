@@ -15,13 +15,19 @@ Complete documentation for the VibeVoice FastAPI server with OpenAI-compatible e
 
 ### Installation
 
-The easiest way to get started is the interactive installer:
+The easiest way to get started is the one-click installer:
 
+**Linux / macOS:**
 ```bash
-python install.py
+curl -fsSL https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.sh | bash
 ```
 
-This detects your GPU, generates `.env`, and sets up everything automatically.
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.bat" -OutFile "install.bat"; .\install.bat
+```
+
+This clones the repo, detects your GPU, generates `.env`, and sets up everything automatically.
 
 Alternatively, set up manually:
 
