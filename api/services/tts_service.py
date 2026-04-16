@@ -20,21 +20,30 @@ from api.config import Settings
 
 # Qwen2.5's tokenizer (the LLM backbone under VibeVoice) maps Unicode
 # "smart" punctuation to rarer token IDs than their ASCII equivalents.
-# Those rare tokens have much less acoustic training, so contractions like
-# "it\u2019s" are pronounced as "it" (the suffix is dropped), and smart
-# quotes / NBSP produce degraded audio. Normalizing to ASCII routes the
-# text through the well-trained token path.
+# For the single-quote / apostrophe case the consequence is severe:
+# "it\u2019s" is pronounced as "it" (the suffix is dropped) because the
+# rare Unicode token has weak acoustic training. Normalizing to ASCII
+# routes contractions through the well-trained token path.
 #
-# Left intentionally: U+2014 em-dash (we use it as a paragraph-pause cue
-# and the model handles it well).
+# Intentionally scoped NARROWLY:
+#   * U+2019 / U+2018 single quotes — ASCII form is a high-frequency
+#     suffix token ('s, 't, 're, etc.) with strong acoustic training,
+#     so normalization is strictly better.
+#   * U+00A0 non-breaking space — extremely rare token, should always
+#     be a regular space anyway.
+#
+# NOT normalized (previously tried, regressed quality):
+#   * U+201C / U+201D smart double quotes — ASCII " has identical token
+#     ID for opening and closing, which loses structural information the
+#     model was trained to use. Converting them caused garbled output
+#     and emergent background music around quoted dialogue.
+#   * U+2014 em-dash — used as the paragraph-pause cue.
+#   * U+2026 ellipsis, U+2013 en-dash — not observed to cause problems;
+#     leave the author's original character choice intact.
 _UNICODE_PUNCT_NORMALIZATION = str.maketrans({
     "\u2019": "'",   # right single quotation mark / apostrophe (fixes it's/don't/etc.)
     "\u2018": "'",   # left single quotation mark
-    "\u201C": '"',   # left double quotation mark
-    "\u201D": '"',   # right double quotation mark
-    "\u2013": "-",   # en-dash
     "\u00A0": " ",   # non-breaking space
-    "\u2026": "...", # horizontal ellipsis
 })
 
 
