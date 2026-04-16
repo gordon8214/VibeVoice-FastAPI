@@ -418,20 +418,22 @@ class TTSService:
         """
         Format plain text as single-speaker script.
 
+        Collapses the input into a single "Speaker {id}:" turn with
+        whitespace-joined content. Multiple turns (one per line/paragraph)
+        are avoided because non-stock (cloned) voices tend to emit
+        emergent transition sounds — grinding, music stings, etc. — at
+        every turn boundary. A single turn with internal punctuation
+        still produces natural sentence/paragraph pauses without that
+        failure mode.
+
         Args:
             text: Plain text input
             speaker_id: Speaker ID to use
 
         Returns:
-            Formatted script
+            Formatted script (one "Speaker {id}:" turn)
         """
-        # Split into sentences/paragraphs
-        lines = text.strip().split('\n')
-        formatted_lines = []
-
-        for line in lines:
-            line = line.strip()
-            if line:
-                formatted_lines.append(f"Speaker {speaker_id}: {line}")
-
-        return '\n'.join(formatted_lines)
+        # Collapse all non-empty lines into a single turn, space-joined
+        lines = [line.strip() for line in text.strip().split('\n')]
+        joined = ' '.join(line for line in lines if line)
+        return f"Speaker {speaker_id}: {joined}"
