@@ -43,9 +43,9 @@ class VoiceManager:
         return {
             "alloy": "en-Alice_woman",
             "echo": "en-Carter_man",
-            "fable": "en-Maya_woman",
+            "fable": "en-Alice_woman",
             "onyx": "en-Frank_man",
-            "nova": "en-Mary_woman_bgm",
+            "nova": "en-Alice_woman",
             "shimmer": "en-Alice_woman"
         }
     

@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         default=None,
         description="Attention implementation: flash_attention_2, sdpa, or eager (auto-detected if None)"
     )
+    vibevoice_load_in_4bit: bool = Field(
+        default=False,
+        description="Load model with 4-bit quantization (reduces VRAM from ~18GB to ~7GB)"
+    )
     
     # Voice Configuration
     voices_dir: str = Field(
@@ -37,7 +41,7 @@ class Settings(BaseSettings):
         description="Directory containing voice preset audio files"
     )
     openai_voice_mapping: str = Field(
-        default='{"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable": "en-Maya_woman", "onyx": "en-Frank_man", "nova": "en-Mary_woman_bgm", "shimmer": "en-Alice_woman"}',
+        default='{"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable": "en-Alice_woman", "onyx": "en-Frank_man", "nova": "en-Alice_woman", "shimmer": "en-Alice_woman"}',
         description="JSON mapping of OpenAI voice names to VibeVoice preset names"
     )
     

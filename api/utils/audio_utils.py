@@ -3,12 +3,51 @@
 import io
 import numpy as np
 import torch
+import librosa
 from typing import Union, Literal
 from pydub import AudioSegment
 import soundfile as sf
 
 
 AudioFormat = Literal["mp3", "opus", "aac", "flac", "wav", "pcm", "m4a"]
+
+
+def apply_speed(
+    audio: Union[np.ndarray, torch.Tensor],
+    speed: float,
+    sample_rate: int = 24000
+) -> np.ndarray:
+    """
+    Apply speed change to audio using time-stretching.
+
+    Args:
+        audio: Audio data as numpy array or torch tensor
+        speed: Speed factor (0.25-4.0). <1.0 = slower, >1.0 = faster
+        sample_rate: Sample rate of the audio
+
+    Returns:
+        Time-stretched audio as numpy array
+    """
+    if speed == 1.0:
+        if torch.is_tensor(audio):
+            return audio.detach().cpu().numpy()
+        return np.array(audio, dtype=np.float32)
+
+    # Convert tensor to numpy if needed
+    if torch.is_tensor(audio):
+        audio = audio.detach().cpu().numpy()
+
+    audio = np.array(audio, dtype=np.float32)
+
+    # Ensure 1D
+    if len(audio.shape) > 1:
+        audio = audio.squeeze()
+
+    # Use librosa time_stretch (preserves pitch while changing speed)
+    # speed > 1.0 = faster (shorter), speed < 1.0 = slower (longer)
+    stretched = librosa.effects.time_stretch(audio, rate=speed)
+
+    return stretched.astype(np.float32)
 
 
 def convert_to_16_bit_wav(audio: Union[np.ndarray, torch.Tensor]) -> np.ndarray:

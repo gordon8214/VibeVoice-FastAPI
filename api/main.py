@@ -39,21 +39,10 @@ async def lifespan(app: FastAPI):
         openai_voice_mapping=settings.openai_voice_mapping
     )
     
-    # Initialize TTS service
-    logger.info("Initializing TTS service...")
+    # Initialize TTS service (model loads lazily on first request)
+    logger.info("Initializing TTS service (model will load on first request)...")
     tts_service = TTSService(settings)
-    
-    # Load model
-    logger.info("Loading VibeVoice model (this may take a few minutes)...")
-    try:
-        tts_service.load_model()
-        logger.info("Model loaded successfully!")
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
-    
+
     # Set global service instances in routers
     openai_tts.tts_service = tts_service
     openai_tts.voice_manager = voice_manager
@@ -116,7 +105,17 @@ async def root():
 @app.get("/health")
 async def health():
     """Simple health check endpoint."""
-    return {"status": "healthy"}
+    loaded = openai_tts.tts_service is not None and openai_tts.tts_service.is_loaded
+    return {"status": "healthy", "model_loaded": loaded}
+
+
+@app.post("/unload")
+async def unload():
+    """Unload model from VRAM to free GPU memory."""
+    if openai_tts.tts_service is None or not openai_tts.tts_service.is_loaded:
+        return {"status": "ok", "message": "No model loaded"}
+    openai_tts.tts_service.unload_model()
+    return {"status": "ok", "message": "Model unloaded"}
 
 
 # Global exception handler

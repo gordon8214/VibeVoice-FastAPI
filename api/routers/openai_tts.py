@@ -8,7 +8,7 @@ from fastapi.responses import Response, StreamingResponse
 from api.models import OpenAITTSRequest, ErrorResponse
 from api.services.tts_service import TTSService
 from api.services.voice_manager import VoiceManager
-from api.utils.audio_utils import audio_to_bytes, get_content_type, get_audio_duration
+from api.utils.audio_utils import audio_to_bytes, get_content_type, get_audio_duration, apply_speed
 from api.utils.streaming import create_streaming_response
 from api.config import settings
 
@@ -77,15 +77,20 @@ async def create_speech(
         )
         generation_time = time.time() - start_time
         
+        # Apply speed adjustment if not 1.0
+        if request.speed and request.speed != 1.0:
+            audio = apply_speed(audio, request.speed, sample_rate=24000)
+
         # Calculate audio duration
         audio_duration = get_audio_duration(audio, sample_rate=24000)
-        
+
         # Log generation details at INFO level
         text_preview = request.input[:100] + "..." if len(request.input) > 100 else request.input
+        speed_info = f" | Speed: {request.speed}" if request.speed and request.speed != 1.0 else ""
         logger.info(
             f"Generated speech - Text: {text_preview} | Voice: {request.voice} | "
             f"Model: {request.model} ({settings.vibevoice_model_path}) | "
-            f"CFG: {settings.default_cfg_scale} | Audio Duration: {audio_duration:.2f}s | Generation Time: {generation_time:.2f}s"
+            f"CFG: {settings.default_cfg_scale}{speed_info} | Audio Duration: {audio_duration:.2f}s | Generation Time: {generation_time:.2f}s"
         )
         
         # Convert to requested format

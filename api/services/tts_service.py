@@ -1,9 +1,11 @@
 """Core TTS generation service wrapping VibeVoice model."""
 
+import threading
+
 import torch
 import numpy as np
 from typing import Iterator, List, Optional, Union
-from transformers import set_seed
+from transformers import set_seed, BitsAndBytesConfig
 
 from vibevoice.modular.configuration_vibevoice import VibeVoiceConfig
 from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
@@ -29,6 +31,7 @@ class TTSService:
         self.device = None
         self.dtype = None
         self._model_loaded = False
+        self._load_lock = threading.Lock()
     
     def load_model(self):
         """Load VibeVoice model and processor."""
@@ -48,10 +51,21 @@ class TTSService:
         # Load processor
         self.processor = VibeVoiceProcessor.from_pretrained(self.settings.vibevoice_model_path)
         
+        # Setup quantization config if enabled
+        quantization_config = None
+        if self.settings.vibevoice_load_in_4bit and self.device == "cuda":
+            print("Using 4-bit quantization (reduces VRAM from ~18GB to ~7GB)")
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type='nf4'
+            )
+
         # Load model
         try:
             if self.device == "mps":
-                # MPS doesn't support device_map
+                # MPS doesn't support device_map or quantization
                 self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                     self.settings.vibevoice_model_path,
                     torch_dtype=self.dtype,
@@ -65,6 +79,7 @@ class TTSService:
                     torch_dtype=self.dtype,
                     device_map="cuda",
                     attn_implementation=attn_implementation,
+                    quantization_config=quantization_config,
                 )
             else:
                 self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
@@ -78,7 +93,7 @@ class TTSService:
                 print(f"Flash attention failed: {e}")
                 print("Falling back to SDPA attention")
                 attn_implementation = "sdpa"
-                
+
                 if self.device == "mps":
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                         self.settings.vibevoice_model_path,
@@ -93,6 +108,7 @@ class TTSService:
                         torch_dtype=self.dtype,
                         device_map="cuda",
                         attn_implementation=attn_implementation,
+                        quantization_config=quantization_config,
                     )
                 else:
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
@@ -123,6 +139,33 @@ class TTSService:
     def is_loaded(self) -> bool:
         """Check if model is loaded."""
         return self._model_loaded
+
+    def ensure_loaded(self):
+        """Ensure model is loaded, loading on first call."""
+        if self._model_loaded:
+            return
+        with self._load_lock:
+            if self._model_loaded:
+                return
+            print("Lazy-loading VibeVoice model on first request...")
+            self.load_model()
+
+    def unload_model(self):
+        """Unload model from VRAM and free GPU memory."""
+        with self._load_lock:
+            if not self._model_loaded:
+                return
+            print("Unloading VibeVoice model...")
+            if self.model is not None:
+                del self.model
+                self.model = None
+            if self.processor is not None:
+                del self.processor
+                self.processor = None
+            self._model_loaded = False
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            print("VibeVoice model unloaded, VRAM freed")
     
     def generate_speech(
         self,
@@ -147,9 +190,8 @@ class TTSService:
         Returns:
             Generated audio array or iterator of audio chunks
         """
-        if not self._model_loaded:
-            raise RuntimeError("Model not loaded. Call load_model() first.")
-        
+        self.ensure_loaded()
+
         # Set seed if provided
         if seed is not None:
             set_seed(seed)

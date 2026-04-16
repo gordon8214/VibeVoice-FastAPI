@@ -23,9 +23,11 @@ $env:PROJECT_ROOT = $projectRoot
 # Configure for 1.5B model on port 8002
 $env:VIBEVOICE_MODEL_PATH = "microsoft/VibeVoice-1.5B"
 $env:API_PORT = "8002"
+$env:VIBEVOICE_INFERENCE_STEPS = "25"
 
 Write-ServiceLog "Model: $env:VIBEVOICE_MODEL_PATH"
 Write-ServiceLog "Port: $env:API_PORT"
+Write-ServiceLog "Inference steps: $env:VIBEVOICE_INFERENCE_STEPS"
 
 # Add ffmpeg to PATH (required for audio processing)
 $env:PATH = "C:\Users\Gordon\bin;$env:PATH"
