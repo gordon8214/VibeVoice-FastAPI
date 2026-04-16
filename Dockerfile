@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MAX_JOBS=2 \
     MAKEFLAGS="-j2"
 
-# Install system dependencies (NO build-essential - we don't compile!)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3.12 \
     python3.12-dev \
@@ -41,14 +41,13 @@ COPY pyproject.toml README.md ./
 COPY requirements-api.txt ./
 
 # Install PyTorch with CUDA support (CUDA 12.8 compatible)
-# Use PyTorch 2.8 to match flash-attention wheel
-# Note: --only-binary removed for PyTorch to work in CI (CPU-only build environment)
-# PyTorch wheels are pre-built, so no compilation occurs
 RUN pip install torch==2.8.* torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
-# Install flash-attn from pre-built wheel directly from GitHub releases
-# Python 3.12 (cp312), CUDA 12.x (cu12 wheel works with 12.1-12.8), PyTorch 2.8
-# Downloading directly ensures NO compilation ever happens
+# Install torchao for INT8 quantization support
+# torchao 0.13.0 was built for PyTorch 2.8.0
+RUN pip install torchao==0.13.0
+
+# Install flash-attn from pre-built wheel (PyTorch 2.8 compatible)
 RUN pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp312-cp312-linux_x86_64.whl || \
     echo "WARNING: flash-attn wheel install failed, continuing without it"
 

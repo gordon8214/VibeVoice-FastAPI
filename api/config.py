@@ -8,7 +8,7 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     # Model Configuration
     vibevoice_model_path: str = Field(
         default="microsoft/VibeVoice-1.5B",
@@ -30,11 +30,23 @@ class Settings(BaseSettings):
         default=None,
         description="Attention implementation: flash_attention_2, sdpa, or eager (auto-detected if None)"
     )
+    torch_compile: bool = Field(
+        default=False,
+        description="Enable torch.compile for optimized inference (20-50% speedup, but first request is slower due to compilation)"
+    )
+    vibevoice_quantization: Optional[str] = Field(
+        default=None,
+        description="Quantization method: 'int8_torchao', 'int4_torchao', or None for full precision"
+    )
+    torch_compile_mode: str = Field(
+        default="default",
+        description="torch.compile mode: 'default', 'reduce-overhead', or 'max-autotune' (slower compile, faster inference)"
+    )
     vibevoice_load_in_4bit: bool = Field(
         default=False,
         description="Load model with 4-bit quantization (reduces VRAM from ~18GB to ~7GB)"
     )
-    
+
     # Voice Configuration
     voices_dir: str = Field(
         default="/app/voices",  # Docker default; override with VOICES_DIR=demo/voices for local dev
@@ -44,7 +56,7 @@ class Settings(BaseSettings):
         default='{"alloy": "en-Alice_woman", "echo": "en-Carter_man", "fable": "en-Alice_woman", "onyx": "en-Frank_man", "nova": "en-Alice_woman", "shimmer": "en-Alice_woman"}',
         description="JSON mapping of OpenAI voice names to VibeVoice preset names"
     )
-    
+
     # API Server Configuration
     api_host: str = Field(
         default="0.0.0.0",
@@ -62,7 +74,7 @@ class Settings(BaseSettings):
         default="*",
         description="CORS allowed origins (comma-separated)"
     )
-    
+
     # Generation Defaults
     default_cfg_scale: float = Field(
         default=1.3,
@@ -96,34 +108,35 @@ class Settings(BaseSettings):
         default=1.0,
         description="Repetition penalty (1.0 = no penalty)"
     )
-    
+
     # Logging
     log_level: str = Field(
         default="INFO",
         description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (case-insensitive)"
     )
-    
+
     @property
     def normalized_log_level(self) -> str:
         """Get log level normalized to uppercase for logging module."""
         return self.log_level.upper()
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
-        
+        extra = "ignore"
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
         if self.api_cors_origins == "*":
             return ["*"]
         return [origin.strip() for origin in self.api_cors_origins.split(",")]
-    
+
     def get_device(self) -> str:
         """Get the appropriate device, checking availability."""
         import torch
-        
+
         if self.vibevoice_device == "cuda" and not torch.cuda.is_available():
             print("WARNING: CUDA requested but not available, falling back to CPU")
             return "cpu"
@@ -131,14 +144,14 @@ class Settings(BaseSettings):
             print("WARNING: MPS requested but not available, falling back to CPU")
             return "cpu"
         return self.vibevoice_device
-    
+
     def get_dtype(self):
         """Get the appropriate dtype for the device."""
         import torch
-        
+
         if self.vibevoice_dtype:
             return getattr(torch, self.vibevoice_dtype)
-        
+
         device = self.get_device()
         if device == "cuda":
             return torch.bfloat16
@@ -146,12 +159,12 @@ class Settings(BaseSettings):
             return torch.float32
         else:
             return torch.float32
-    
+
     def get_attn_implementation(self) -> str:
         """Get the appropriate attention implementation."""
         if self.vibevoice_attn_implementation:
             return self.vibevoice_attn_implementation
-        
+
         device = self.get_device()
         if device == "cuda":
             # Try flash_attention_2 first, fallback to sdpa
@@ -166,5 +179,3 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
-
-

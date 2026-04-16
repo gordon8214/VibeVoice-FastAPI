@@ -10,23 +10,22 @@ echo "============================================================"
 echo ""
 
 # ============================================================
-# Python Version Check
-# flash-attn requires Python 3.8-3.11 (3.10 or 3.11 recommended)
+# Python Version Check (3.10 - 3.12, prefer 3.12 to match Docker)
 # ============================================================
 REQUIRED_PYTHON_MAJOR=3
 REQUIRED_PYTHON_MINOR_MIN=10
-REQUIRED_PYTHON_MINOR_MAX=11
+REQUIRED_PYTHON_MINOR_MAX=12
 
 echo "Checking for compatible Python version..."
 
-# Find suitable Python version
+# Find suitable Python version (prefer newest first)
 PYTHON_CMD=""
-for version in python3.11 python3.10 python3; do
+for version in python3.12 python3.11 python3.10 python3; do
     if command -v $version &> /dev/null; then
         PY_VERSION=$($version -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
         PY_MAJOR=$(echo $PY_VERSION | cut -d. -f1)
         PY_MINOR=$(echo $PY_VERSION | cut -d. -f2)
-        
+
         if [ "$PY_MAJOR" -eq "$REQUIRED_PYTHON_MAJOR" ] && \
            [ "$PY_MINOR" -ge "$REQUIRED_PYTHON_MINOR_MIN" ] && \
            [ "$PY_MINOR" -le "$REQUIRED_PYTHON_MINOR_MAX" ]; then
@@ -38,11 +37,11 @@ for version in python3.11 python3.10 python3; do
 done
 
 if [ -z "$PYTHON_CMD" ]; then
-    echo "❌ ERROR: Python 3.10 or 3.11 is required for flash-attn compatibility."
+    echo "❌ ERROR: Python 3.10, 3.11, or 3.12 is required."
     echo ""
-    echo "Please install Python 3.10 or 3.11:"
-    echo "  Ubuntu/Debian: sudo apt install python3.11 python3.11-venv"
-    echo "  macOS: brew install python@3.11"
+    echo "Please install Python 3.12 (recommended):"
+    echo "  Ubuntu/Debian: sudo apt install python3.12 python3.12-venv"
+    echo "  macOS: brew install python@3.12"
     echo ""
     exit 1
 fi
@@ -76,41 +75,51 @@ echo "✓ Set MAX_JOBS=2 to prevent system hangs if compilation occurs"
 echo ""
 echo "Detecting CUDA and installing PyTorch..."
 
+PY_VERSION_SHORT=$(python -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')
+
 if command -v nvidia-smi &> /dev/null; then
     CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+' | head -1)
     CUDA_MAJOR=$(echo $CUDA_VERSION | cut -d. -f1)
+    CUDA_MINOR=$(echo $CUDA_VERSION | cut -d. -f2)
     echo "✓ Detected CUDA $CUDA_VERSION"
-    
-    # Select appropriate PyTorch CUDA version
-    if [ "$CUDA_MAJOR" -ge "12" ]; then
-        TORCH_INDEX="cu121"
+
+    # Select appropriate PyTorch CUDA index
+    if [ "$CUDA_MAJOR" -gt "12" ] || { [ "$CUDA_MAJOR" -eq "12" ] && [ "$CUDA_MINOR" -ge "8" ]; }; then
+        TORCH_INDEX="cu128"
+    elif [ "$CUDA_MAJOR" -eq "12" ]; then
+        TORCH_INDEX="cu124"
     elif [ "$CUDA_MAJOR" -ge "11" ]; then
         TORCH_INDEX="cu118"
-    else:
+    else
         echo "⚠️  WARNING: CUDA $CUDA_VERSION may not be fully supported"
         TORCH_INDEX="cu118"
     fi
-    
-    echo "Installing PyTorch with CUDA support ($TORCH_INDEX)..."
-    pip install --only-binary=:all: torch torchaudio --index-url https://download.pytorch.org/whl/$TORCH_INDEX
-    
+
+    echo "Installing PyTorch 2.8.x with CUDA support ($TORCH_INDEX)..."
+    pip install --only-binary=:all: torch==2.8.* torchaudio --index-url https://download.pytorch.org/whl/$TORCH_INDEX
+
+    # Install torchao for INT8/INT4 quantization support
+    echo ""
+    echo "Installing torchao for quantization support..."
+    pip install --only-binary=:all: torchao==0.13.0 || {
+        echo "⚠️  WARNING: torchao installation failed. Quantization will not be available."
+    }
+
     # Install flash-attn from pre-built wheel (NO COMPILATION)
     echo ""
     echo "Installing flash-attn from pre-built wheel..."
     echo "Note: This is optional but recommended for better performance"
-    
-    # Determine the correct wheel based on Python version and CUDA
-    PY_VERSION_SHORT=$(python -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')
-    
-    if [ "$TORCH_INDEX" = "cu121" ]; then
-        FLASH_WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiTRUE-${PY_VERSION_SHORT}-${PY_VERSION_SHORT}-linux_x86_64.whl"
+
+    # Select flash-attn wheel matching PyTorch 2.8 and detected CUDA
+    FLASH_WHEEL_URL=""
+    if [ "$TORCH_INDEX" = "cu128" ] || [ "$TORCH_INDEX" = "cu124" ]; then
+        FLASH_WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-${PY_VERSION_SHORT}-${PY_VERSION_SHORT}-linux_x86_64.whl"
     elif [ "$TORCH_INDEX" = "cu118" ]; then
-        FLASH_WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu118torch2.4cxx11abiFALSE-${PY_VERSION_SHORT}-${PY_VERSION_SHORT}-linux_x86_64.whl"
+        FLASH_WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu118torch2.8cxx11abiFALSE-${PY_VERSION_SHORT}-${PY_VERSION_SHORT}-linux_x86_64.whl"
     else
         echo "⚠️  WARNING: No pre-built flash-attn wheel for CUDA $CUDA_VERSION"
-        FLASH_WHEEL_URL=""
     fi
-    
+
     if [ -n "$FLASH_WHEEL_URL" ]; then
         pip install "$FLASH_WHEEL_URL" && \
         echo "✓ flash-attn installed from pre-built wheel" || {
@@ -120,7 +129,7 @@ if command -v nvidia-smi &> /dev/null; then
     fi
 else
     echo "ℹ️  No CUDA detected, installing CPU-only PyTorch"
-    pip install --only-binary=:all: torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+    pip install --only-binary=:all: torch==2.8.* torchaudio --index-url https://download.pytorch.org/whl/cpu
     echo "Note: flash-attn requires CUDA and will not be installed."
 fi
 
@@ -188,8 +197,7 @@ echo "     ./start.sh"
 echo ""
 echo "Or manually:"
 echo "  source venv/bin/activate"
-echo "  uvicorn api.main:app --host 0.0.0.0 --port 8000"
+echo "  uvicorn api.main:app --host 0.0.0.0 --port 8001"
 echo ""
 echo "The model will be downloaded automatically on first run."
 echo "============================================================"
-

@@ -6,9 +6,29 @@
 - NVIDIA GPU with CUDA support
 - NVIDIA Container Toolkit installed
 
+**Windows users:** Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) with WSL2 backend enabled. GPU support requires the [NVIDIA CUDA on WSL](https://docs.nvidia.com/cuda/wsl-user-guide/) driver.
+
 ## Quick Start
 
-### 1. Setup Environment
+### Option A: One-Click Install (Easiest)
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ncoder-ai/VibeVoice-FastAPI/main/install.bat" -OutFile "install.bat"; .\install.bat
+```
+
+Or if you already have the repo cloned: `python3 install.py`
+
+The installer will auto-detect your GPU, walk you through configuration, generate `.env`, update `docker-compose.yml`, and start the container for you.
+
+### Option B: Manual Setup
+
+#### 1. Setup Environment
 
 ```bash
 # Copy environment file
@@ -20,7 +40,7 @@ nano .env
 
 **Required:** Set `VOICES_DIR` to the absolute path where your voice files are stored on the host.
 
-### 2. Build and Run
+#### 2. Build and Run
 
 ```bash
 # Build and start
@@ -52,11 +72,19 @@ open http://localhost:8001/docs
 VIBEVOICE_MODEL_PATH=microsoft/VibeVoice-1.5B
 
 # Voice directory on HOST (required)
+# Linux/macOS:
 VOICES_DIR=/path/to/your/voices/on/host
+# Windows:
+# VOICES_DIR=C:\Users\username\voices
 
 # Optional: HuggingFace cache for faster model loading
+# Linux/macOS:
 HF_CACHE_DIR=~/.cache/huggingface
+# Windows:
+# HF_CACHE_DIR=C:\Users\username\.cache\huggingface
 ```
+
+> **Windows note:** Use full Windows paths (e.g., `C:\Users\...`). The `~` tilde shortcut does not expand on Windows. Docker Desktop will handle converting Windows paths to Linux mount paths automatically.
 
 ### GPU Configuration
 
@@ -82,6 +110,10 @@ The following host paths are mounted into the container:
 
 ## Troubleshooting
 
+### "Extra inputs are not permitted" error
+
+If you see an error like `Extra inputs are not permitted [type=extra_forbidden, input_value='./models', input_type=str]`, you have env vars in your `.env` that the app doesn't recognize. This was fixed - pull the latest code. Any unknown env vars (like `MODELS_DIR`, `HF_CACHE_DIR`) are now safely ignored by the app.
+
 ### No voices available
 
 Check that `VOICES_DIR` in `.env` points to the correct host path with voice files.
@@ -90,7 +122,7 @@ Check that `VOICES_DIR` in `.env` points to the correct host path with voice fil
 
 ```bash
 # Test GPU access
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi
 
 # Check container GPU access
 docker exec vibevoice-api nvidia-smi
@@ -114,7 +146,7 @@ HF_CACHE_DIR=~/.cache/huggingface
 
 - ✅ **No compilation** - All packages installed from pre-built wheels
 - ✅ **Fast builds** - Builds complete in minutes, not hours
-- ✅ **Python 3.10 + CUDA 12.1** - Optimized for wheel availability
+- ✅ **Python 3.12 + CUDA 12.8** - Optimized for wheel availability
 - ✅ **Flash-attention** - Pre-built wheel support (optional)
 
 ## Resource Requirements
