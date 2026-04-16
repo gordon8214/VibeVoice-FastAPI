@@ -23,9 +23,10 @@ voice_manager: VoiceManager = None
 
 
 def get_tts_service() -> TTSService:
-    """Dependency to get TTS service."""
-    if tts_service is None or not tts_service.is_loaded:
+    """Dependency to get TTS service, triggering lazy load if needed."""
+    if tts_service is None:
         raise HTTPException(status_code=503, detail="TTS service not ready")
+    tts_service.ensure_loaded()
     return tts_service
 
 
