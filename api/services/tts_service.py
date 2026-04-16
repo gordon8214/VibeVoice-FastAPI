@@ -18,6 +18,31 @@ from vibevoice.modular.streamer import AudioStreamer
 from api.config import Settings
 
 
+# Qwen2.5's tokenizer (the LLM backbone under VibeVoice) maps Unicode
+# "smart" punctuation to rarer token IDs than their ASCII equivalents.
+# Those rare tokens have much less acoustic training, so contractions like
+# "it\u2019s" are pronounced as "it" (the suffix is dropped), and smart
+# quotes / NBSP produce degraded audio. Normalizing to ASCII routes the
+# text through the well-trained token path.
+#
+# Left intentionally: U+2014 em-dash (we use it as a paragraph-pause cue
+# and the model handles it well).
+_UNICODE_PUNCT_NORMALIZATION = str.maketrans({
+    "\u2019": "'",   # right single quotation mark / apostrophe (fixes it's/don't/etc.)
+    "\u2018": "'",   # left single quotation mark
+    "\u201C": '"',   # left double quotation mark
+    "\u201D": '"',   # right double quotation mark
+    "\u2013": "-",   # en-dash
+    "\u00A0": " ",   # non-breaking space
+    "\u2026": "...", # horizontal ellipsis
+})
+
+
+def _normalize_text_for_tts(text: str) -> str:
+    """Normalize Unicode punctuation to ASCII for better Qwen tokenization."""
+    return text.translate(_UNICODE_PUNCT_NORMALIZATION)
+
+
 class TTSService:
     """Service for TTS generation using VibeVoice model."""
 
@@ -305,6 +330,11 @@ class TTSService:
         """
         self.ensure_loaded()
 
+        # Normalize Unicode punctuation to ASCII so contractions like
+        # "it\u2019s" tokenize via the well-trained path and don't drop
+        # suffixes. See _normalize_text_for_tts for full rationale.
+        text = _normalize_text_for_tts(text)
+
         # Set seed if provided
         if seed is not None:
             set_seed(seed)
@@ -418,22 +448,39 @@ class TTSService:
         """
         Format plain text as single-speaker script.
 
-        Collapses the input into a single "Speaker {id}:" turn with
-        whitespace-joined content. Multiple turns (one per line/paragraph)
-        are avoided because non-stock (cloned) voices tend to emit
-        emergent transition sounds — grinding, music stings, etc. — at
-        every turn boundary. A single turn with internal punctuation
-        still produces natural sentence/paragraph pauses without that
-        failure mode.
+        Collapses the input into a single "Speaker {id}:" turn, because
+        multiple turns (one per line/paragraph) cause cloned voices to
+        emit emergent transition sounds — grinding, music stings, etc. —
+        at every turn boundary.
+
+        To preserve prosodic pauses at paragraph/heading boundaries, each
+        non-empty input line is:
+          1. Ensured to end with sentence-ending punctuation (period added
+             if the line is a bare heading like "Key context"), and
+          2. Joined with " — " (spaced em-dash). The em-dash gives the
+             model's LLM head a strong pause cue, equivalent to the
+             paragraph break in the source text, without creating a new
+             dialogue turn that would trigger ambient-audio artifacts.
+
+        Embedded newlines within a turn truncate generation (the model
+        stops at the first \\n), so the output is a single continuous
+        line.
 
         Args:
             text: Plain text input
             speaker_id: Speaker ID to use
 
         Returns:
-            Formatted script (one "Speaker {id}:" turn)
+            Formatted script (one "Speaker {id}:" turn, em-dash-separated)
         """
-        # Collapse all non-empty lines into a single turn, space-joined
-        lines = [line.strip() for line in text.strip().split('\n')]
-        joined = ' '.join(line for line in lines if line)
-        return f"Speaker {speaker_id}: {joined}"
+        sentence_end = {".", "!", "?", ":", ";", "—", "…"}
+        processed = []
+        for raw in text.strip().split("\n"):
+            line = raw.strip()
+            if not line:
+                continue
+            if line[-1] not in sentence_end:
+                line = line + "."
+            processed.append(line)
+        body = " — ".join(processed)
+        return f"Speaker {speaker_id}: {body}"
