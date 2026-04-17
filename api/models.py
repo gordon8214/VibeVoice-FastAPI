@@ -18,7 +18,7 @@ class OpenAITTSRequest(BaseModel):
     input: str = Field(
         ...,
         description="The text to generate audio for",
-        max_length=4096
+        max_length=16000
     )
     voice: str = Field(
         ...,
