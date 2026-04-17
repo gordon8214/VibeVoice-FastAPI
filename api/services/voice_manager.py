@@ -2,6 +2,7 @@
 
 import os
 import json
+import threading
 from typing import Dict, List, Optional
 import numpy as np
 import soundfile as sf
@@ -24,7 +25,13 @@ class VoiceManager:
         """
         self.voices_dir = Path(voices_dir)
         self.voice_presets: Dict[str, str] = {}
-        
+        # Resampled audio cache: keyed by (path, mtime_ns, target_sr) so that
+        # swapping a preset file on disk invalidates the entry without a restart.
+        # Lock guards FIFO eviction against concurrent worker-thread requests.
+        self._audio_cache: Dict[tuple, np.ndarray] = {}
+        self._audio_cache_max = 32
+        self._audio_cache_lock = threading.Lock()
+
         # Parse OpenAI voice mapping from JSON string
         if openai_voice_mapping:
             try:
@@ -104,10 +111,22 @@ class VoiceManager:
             Audio array, or None if voice not found
         """
         voice_path = self.get_voice_path(voice_name, is_openai_voice)
-        
+
         if not voice_path:
             return None
-        
+
+        try:
+            mtime_ns = os.stat(voice_path).st_mtime_ns
+        except OSError as e:
+            print(f"Error stat'ing voice {voice_name} at {voice_path}: {e}")
+            return None
+
+        cache_key = (voice_path, mtime_ns, target_sr)
+        with self._audio_cache_lock:
+            cached = self._audio_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             # Check if file format needs pydub (m4a, aac, mp3)
             file_ext = Path(voice_path).suffix.lower()
@@ -138,9 +157,19 @@ class VoiceManager:
             # Resample if needed
             if sr != target_sr:
                 wav = librosa.resample(wav, orig_sr=sr, target_sr=target_sr)
-            
-            return wav.astype(np.float32)
-            
+
+            wav = wav.astype(np.float32)
+            # Cached array is shared across requests — mark read-only so any
+            # accidental in-place mutation upstream fails loudly.
+            wav.setflags(write=False)
+
+            with self._audio_cache_lock:
+                self._audio_cache[cache_key] = wav
+                if len(self._audio_cache) > self._audio_cache_max:
+                    self._audio_cache.pop(next(iter(self._audio_cache)))
+
+            return wav
+
         except Exception as e:
             print(f"Error loading voice {voice_name} from {voice_path}: {e}")
             return None

@@ -21,4 +21,11 @@ sse-starlette>=1.8.0
 # HTTP client (for testing)
 httpx>=0.26.0
 
-
+# Optional performance: Flash Attention 2 — 10-20% faster attention on
+# Ampere+ NVIDIA GPUs. Not a wheel on PyPI for every torch version, so it's
+# commented out. Install manually after the rest of the stack:
+#   pip install flash-attn==2.8.3 --no-build-isolation
+# Pin a version: unpinned flash-attn frequently breaks against specific torch
+# releases. Requires a matching CUDA toolchain. The API auto-detects and uses
+# it when present (api/config.py::get_attn_implementation).
+# flash-attn==2.8.3

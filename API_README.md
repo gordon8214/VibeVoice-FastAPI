@@ -255,8 +255,13 @@ API_PORT=8001
 API_CORS_ORIGINS=*
 
 # Performance Optimization
-TORCH_COMPILE=true                               # 20-50% speedup (slower first request)
-TORCH_COMPILE_MODE=max-autotune                  # default, reduce-overhead, or max-autotune
+# TORCH_COMPILE=true                             # Disabled by default — A/B tested
+                                                 # on VibeVoice-1.5B/RTX 4070 and saw
+                                                 # no measurable speedup (graph capture
+                                                 # breaks on the inference loop).
+# TORCH_COMPILE_MODE=max-autotune                # default, reduce-overhead, or max-autotune
+# TORCHINDUCTOR_CACHE_DIR=~/.cache/torchinductor # Persist compile cache across restarts
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True # Less allocator fragmentation
 # VIBEVOICE_QUANTIZATION=int8_torchao            # Reduce VRAM ~40%
 
 # Generation Defaults

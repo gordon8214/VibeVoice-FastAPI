@@ -85,6 +85,14 @@ class TTSService:
 
         print(f"Using device: {self.device}, dtype: {self.dtype}, attention: {attn_implementation}")
 
+        # TF32 for the fp32 paths (acoustic/semantic tokenizers, diffusion head).
+        # Bfloat16 LM forward is unaffected; this only routes fp32 matmuls through
+        # TF32 Tensor Cores on Ampere+ GPUs.
+        if self.device == "cuda":
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.set_float32_matmul_precision("high")
+
         # Load processor
         self.processor = VibeVoiceProcessor.from_pretrained(self.settings.vibevoice_model_path)
 
