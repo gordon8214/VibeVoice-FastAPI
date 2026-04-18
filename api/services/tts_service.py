@@ -431,35 +431,58 @@ class TTSService:
         import threading
 
         def generate():
-            with torch.no_grad():
-                self.model.generate(
-                    **inputs,
-                    max_new_tokens=None,
-                    cfg_scale=cfg_scale,
-                    tokenizer=self.processor.tokenizer,
-                    generation_config={'do_sample': False},
-                    audio_streamer=audio_streamer,
-                    return_speech=True,
-                    verbose=False,
-                    refresh_negative=True,
-                    show_progress_bar=False
-                )
+            # The finally block is critical — without it, a raised exception
+            # inside model.generate() leaves the streamer with no stop
+            # signal, and the consumer's blocking queue.get() would hang
+            # forever. We call end() idempotently so normal completion and
+            # error paths both wake up the iterator.
+            try:
+                with torch.no_grad():
+                    self.model.generate(
+                        **inputs,
+                        max_new_tokens=None,
+                        cfg_scale=cfg_scale,
+                        tokenizer=self.processor.tokenizer,
+                        generation_config={'do_sample': False},
+                        audio_streamer=audio_streamer,
+                        return_speech=True,
+                        verbose=False,
+                        refresh_negative=True,
+                        show_progress_bar=False
+                    )
+            except Exception:
+                logger.exception("Streaming generation thread failed")
+            finally:
+                audio_streamer.end()
 
         generation_thread = threading.Thread(target=generate)
         generation_thread.start()
 
-        # Yield chunks as they arrive
+        # Yield chunks as they arrive. The outer try/finally ensures the
+        # generation thread is not silently leaked when the generator is
+        # closed early (e.g. the HTTP client disconnected and Starlette
+        # called aclose() on our body iterator, which translates to a
+        # GeneratorExit raised at the next yield).
         audio_stream = audio_streamer.get_stream(0)
-        for chunk in audio_stream:
-            if torch.is_tensor(chunk):
-                # Convert bfloat16 to float32 before converting to numpy
-                if chunk.dtype == torch.bfloat16:
-                    chunk = chunk.float()
-                chunk = chunk.cpu().numpy()
-            yield chunk
-
-        # Wait for generation to complete
-        generation_thread.join(timeout=10.0)
+        try:
+            for chunk in audio_stream:
+                if torch.is_tensor(chunk):
+                    # Convert bfloat16 to float32 before converting to numpy
+                    if chunk.dtype == torch.bfloat16:
+                        chunk = chunk.float()
+                    chunk = chunk.cpu().numpy()
+                yield chunk
+        finally:
+            # Wait for generation to complete. A short timeout is fine: the
+            # model can't actually be interrupted here, so if the thread is
+            # still running after this wait we log and move on — the thread
+            # will finish and mark itself end() via the generate() finally.
+            generation_thread.join(timeout=10.0)
+            if generation_thread.is_alive():
+                logger.warning(
+                    "Streaming generation thread still running after 10s "
+                    "join; leaving it to finish in the background"
+                )
 
     def format_script_for_single_speaker(self, text: str, speaker_id: int = 0) -> str:
         """

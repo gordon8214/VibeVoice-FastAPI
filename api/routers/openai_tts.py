@@ -1,11 +1,14 @@
 """OpenAI-compatible TTS endpoint."""
 
+import asyncio
 import logging
 import time
+from typing import AsyncIterator
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
 from api.models import OpenAITTSRequest, ErrorResponse
+from api.routers.streaming_policy import should_stream
 from api.services.tts_service import TTSService
 from api.services.voice_manager import VoiceManager
 from api.utils.audio_utils import audio_to_bytes, get_content_type, get_audio_duration, apply_speed
@@ -16,6 +19,40 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/v1/audio", tags=["OpenAI Compatible"])
+
+
+async def _observe_stream(
+    inner: AsyncIterator[bytes],
+    *,
+    log_prefix: str,
+) -> AsyncIterator[bytes]:
+    """Wrap a streaming body iterator to log post-stream metrics.
+
+    Captures ok / cancelled / error outcomes so streaming responses are
+    just as ops-visible as the non-streaming path used to be. Clean-up of
+    the underlying generation thread is handled in tts_service._generate_streaming
+    via its try/finally; this wrapper only records what happened on the
+    HTTP side.
+    """
+    start = time.monotonic()
+    total_bytes = 0
+    status = "ok"
+    try:
+        async for chunk in inner:
+            total_bytes += len(chunk)
+            yield chunk
+    except asyncio.CancelledError:
+        status = "cancelled"
+        raise
+    except Exception:
+        status = "error"
+        raise
+    finally:
+        elapsed = time.monotonic() - start
+        logger.info(
+            f"{log_prefix} | Status: {status} | Bytes: {total_bytes} | Elapsed: {elapsed:.2f}s"
+        )
+
 
 # Global service instances (initialized in main.py)
 tts_service: TTSService = None
@@ -67,17 +104,10 @@ async def create_speech(
         # Format text as single-speaker script
         formatted_script = tts.format_script_for_single_speaker(request.input, speaker_id=0)
 
-        # Stream when the caller doesn't need post-processing that requires
-        # the full audio tensor (speed != 1.0 scales the numpy array; WAV
-        # needs an accurate total-length header). Chunked MP3/OPUS/AAC/FLAC
-        # work fine as a concatenated byte stream — consumers that care
-        # (e.g. pydub/ffmpeg) handle appended frames transparently.
-        wants_speed = bool(request.speed) and request.speed != 1.0
-        can_stream = not wants_speed and request.response_format not in {"wav"}
-
+        wants_speed = request.speed is not None and request.speed != 1.0
         text_preview = request.input[:100] + "..." if len(request.input) > 100 else request.input
 
-        if can_stream:
+        if should_stream(request.speed, request.response_format):
             logger.info(
                 f"Generating speech (streaming) - Text: {text_preview} | Voice: {request.voice} | "
                 f"Model: {request.model} ({settings.vibevoice_model_path}) | "
@@ -89,14 +119,28 @@ async def create_speech(
                 cfg_scale=settings.default_cfg_scale,
                 stream=True,
             )
-            return create_streaming_response(
+            streaming_response = create_streaming_response(
                 audio_stream,
                 format=request.response_format,
                 sample_rate=24000,
                 use_sse=False,
             )
+            # Rewrap the body iterator with a metrics wrapper so we still log
+            # bytes / elapsed / status after a streaming response finishes or
+            # is cancelled. Thread-side cleanup lives in
+            # tts_service._generate_streaming's try/finally.
+            log_prefix = (
+                f"Generated speech (streaming) - Text: {text_preview} | Voice: {request.voice} | "
+                f"Model: {request.model} ({settings.vibevoice_model_path}) | "
+                f"CFG: {settings.default_cfg_scale} | Format: {request.response_format}"
+            )
+            streaming_response.body_iterator = _observe_stream(
+                streaming_response.body_iterator,
+                log_prefix=log_prefix,
+            )
+            return streaming_response
 
-        # Non-streaming path: speed adjustment or WAV output.
+        # Non-streaming path: speed adjustment or a format we can't chunk.
         start_time = time.time()
         audio = tts.generate_speech(
             text=formatted_script,
