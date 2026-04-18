@@ -66,48 +66,70 @@ async def create_speech(
         
         # Format text as single-speaker script
         formatted_script = tts.format_script_for_single_speaker(request.input, speaker_id=0)
-        
-        # Generate speech with timing
-        # Note: OpenAI API doesn't support streaming in the same way, but we can use chunked transfer
+
+        # Stream when the caller doesn't need post-processing that requires
+        # the full audio tensor (speed != 1.0 scales the numpy array; WAV
+        # needs an accurate total-length header). Chunked MP3/OPUS/AAC/FLAC
+        # work fine as a concatenated byte stream — consumers that care
+        # (e.g. pydub/ffmpeg) handle appended frames transparently.
+        wants_speed = bool(request.speed) and request.speed != 1.0
+        can_stream = not wants_speed and request.response_format not in {"wav"}
+
+        text_preview = request.input[:100] + "..." if len(request.input) > 100 else request.input
+
+        if can_stream:
+            logger.info(
+                f"Generating speech (streaming) - Text: {text_preview} | Voice: {request.voice} | "
+                f"Model: {request.model} ({settings.vibevoice_model_path}) | "
+                f"CFG: {settings.default_cfg_scale} | Format: {request.response_format}"
+            )
+            audio_stream = tts.generate_speech(
+                text=formatted_script,
+                voice_samples=[voice_audio],
+                cfg_scale=settings.default_cfg_scale,
+                stream=True,
+            )
+            return create_streaming_response(
+                audio_stream,
+                format=request.response_format,
+                sample_rate=24000,
+                use_sse=False,
+            )
+
+        # Non-streaming path: speed adjustment or WAV output.
         start_time = time.time()
         audio = tts.generate_speech(
             text=formatted_script,
             voice_samples=[voice_audio],
             cfg_scale=settings.default_cfg_scale,
-            stream=False  # For OpenAI compatibility, generate all at once
+            stream=False,
         )
         generation_time = time.time() - start_time
-        
-        # Apply speed adjustment if not 1.0
-        if request.speed and request.speed != 1.0:
+
+        if wants_speed:
             audio = apply_speed(audio, request.speed, sample_rate=24000)
 
-        # Calculate audio duration
         audio_duration = get_audio_duration(audio, sample_rate=24000)
 
-        # Log generation details at INFO level
-        text_preview = request.input[:100] + "..." if len(request.input) > 100 else request.input
-        speed_info = f" | Speed: {request.speed}" if request.speed and request.speed != 1.0 else ""
+        speed_info = f" | Speed: {request.speed}" if wants_speed else ""
         logger.info(
             f"Generated speech - Text: {text_preview} | Voice: {request.voice} | "
             f"Model: {request.model} ({settings.vibevoice_model_path}) | "
             f"CFG: {settings.default_cfg_scale}{speed_info} | Audio Duration: {audio_duration:.2f}s | Generation Time: {generation_time:.2f}s"
         )
-        
-        # Convert to requested format
+
         audio_bytes = audio_to_bytes(
             audio,
             sample_rate=24000,
-            format=request.response_format
+            format=request.response_format,
         )
-        
-        # Return audio response
+
         return Response(
             content=audio_bytes,
             media_type=get_content_type(request.response_format),
             headers={
                 "Content-Disposition": f"attachment; filename=speech.{request.response_format}"
-            }
+            },
         )
         
     except HTTPException:
