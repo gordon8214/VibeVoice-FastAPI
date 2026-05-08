@@ -64,3 +64,4 @@ Thumbs.db
 service/*.exe
 service-1.5b/*.exe
 logs/
+.env.bak.*
